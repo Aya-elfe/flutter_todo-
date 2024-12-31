@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.UserDTO;
+import com.example.demo.entity.User;
 import com.example.demo.service.UserService;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,13 +25,25 @@ public class UserController {
 
     // Register endpoint
     @PostMapping("/register")
-    public ResponseEntity<String> registerUser(@RequestBody UserDTO userDTO) {
-        boolean isRegistered = userService.registerUser(userDTO.getUsername(), userDTO.getEmail(), userDTO.getPassword());
-        if (isRegistered) {
-            return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully.");
+    public ResponseEntity<?> registerUser(@RequestBody UserDTO userDTO) {
+        try {
+            // Register the user and get the created User object
+            User registeredUser = userService.registerUser(userDTO.getUsername(), userDTO.getEmail(), userDTO.getPassword());
+
+            // Build the response with the user details
+            Map<String, Object> response = new HashMap<>();
+            response.put("userId", registeredUser.getId());
+            response.put("username", registeredUser.getUsername());
+            response.put("email", registeredUser.getEmail());
+            response.put("createdAt", registeredUser.getCreatedAt());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            // Return a bad request response with the error message
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("User registration failed.");
     }
+
 
     // Login endpoint
     /*@PostMapping("/login")
@@ -85,13 +98,48 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
     // Update username
-    @PutMapping("/{id}/username")
-    public ResponseEntity<String> updateUsername(@PathVariable Long id, @RequestParam String username) {
+    @PutMapping("/username/{id}")
+    public ResponseEntity<String> updateUsername(@PathVariable Long id, @RequestBody Map<String, String> requestBody) {
+        // Extract the username from the request body
+        String username = requestBody.get("username");
+
+        if (username == null || username.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Username cannot be null or empty.");
+        }
+
+        // Call the service to update the username
         boolean isUpdated = userService.updateUsername(id, username);
+
         if (isUpdated) {
             return ResponseEntity.ok("Username updated successfully.");
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Failed to update username.");
+    }
+    @PutMapping("/password/{id}")
+    public ResponseEntity<String> updatePassword(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> requestBody) {
+        // Extract currentPassword and newPassword from the request body
+        String currentPassword = requestBody.get("currentPassword");
+        String newPassword = requestBody.get("newPassword");
+
+        if (currentPassword == null || currentPassword.isEmpty() ||
+                newPassword == null || newPassword.isEmpty()) {
+            return ResponseEntity.badRequest().body("Current and new passwords must be provided.");
+        }
+
+        try {
+            boolean isUpdated = userService.updatePassword(id, currentPassword, newPassword);
+
+            if (isUpdated) {
+                return ResponseEntity.ok("Password updated successfully.");
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid current password.");
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while updating the password: " + e.getMessage());
+        }
     }
 
 }

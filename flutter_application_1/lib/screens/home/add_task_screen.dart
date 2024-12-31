@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../controllers/task_controller.dart';
 import '../../models/task.dart';
 import '../../widgets/common/loading_overlay.dart';
@@ -205,54 +206,64 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         return Colors.green;
     }
   }
+Future<void> _saveTask() async {
+  if (!_formKey.currentState!.validate()) return;
 
-  Future<void> _saveTask() async {
-    if (!_formKey.currentState!.validate()) return;
+  setState(() => _isLoading = true);
 
-    setState(() => _isLoading = true);
+  try {
+    // Retrieve the userId from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final userIdString = prefs.getString('userId');
 
-    try {
-      final dueDateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        _selectedTime.hour,
-        _selectedTime.minute,
-      );
-
-      if (_selectedCategory == null) {
-        throw Exception("Category must be selected");
-      }
-
-      final task = Task(
-        title: _titleController.text,
-        description: _descriptionController.text,
-        category: _selectedCategory!,
-        categoryId: _selectedCategory!.index + 1, // Ensure this aligns with database IDs
-        priority: _selectedPriority,
-        dateTime: DateTime.now(),
-        dueDate: dueDateTime,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        userId: 1, // Replace with actual user ID
-      );
-
-      await context.read<TaskController>().addTask(task);
-
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error adding task: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
+    if (userIdString == null) {
+      throw Exception("User ID is not available. Please log in again.");
     }
+
+    final userId = int.parse(userIdString); // Convert to int
+
+    final dueDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+
+    if (_selectedCategory == null) {
+      throw Exception("Category must be selected");
+    }
+
+    final task = Task(
+      title: _titleController.text,
+      description: _descriptionController.text,
+      category: _selectedCategory!,
+      categoryId: _selectedCategory!.index + 1, // Ensure this aligns with database IDs
+      priority: _selectedPriority,
+      dateTime: DateTime.now(),
+      dueDate: dueDateTime,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      userId: userId, // Pass the retrieved user ID
+    );
+
+    await context.read<TaskController>().addTask(task);
+
+    if (mounted) {
+      Navigator.pop(context, true);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error adding task: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
+
 }

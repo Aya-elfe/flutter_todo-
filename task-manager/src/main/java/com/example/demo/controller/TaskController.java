@@ -110,7 +110,19 @@ public class TaskController {
     }
     // adding put status endpoint
 
-
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<TaskDTO>> getTasksByUserId(@PathVariable Long userId) {
+        try {
+            List<TaskDTO> tasks = taskService.getTasksByUserId(userId);
+            if (tasks.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            }
+            return ResponseEntity.ok(tasks);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null); // Handle exceptions gracefully
+        }
+    }
 
 }
 

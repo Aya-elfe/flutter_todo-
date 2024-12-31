@@ -1,8 +1,33 @@
-import 'package:flutter/material.dart';
-import '../../config/theme.dart';
+import 'dart:convert';
+import 'dart:io';
 
-class ProfileScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+import '../../config/theme.dart';
+import 'package:http/http.dart' as http;
+
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String username = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  Future<void> _loadUserInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      username = prefs.getString('username') ?? 'Guest'; // Default to 'Guest' if not found
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +42,7 @@ class ProfileScreen extends StatelessWidget {
             Center(
               child: Stack(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 50,
                     backgroundImage: AssetImage('assets/images/profile.png'),
                   ),
@@ -41,9 +66,9 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'user1',
-              style: TextStyle(
+            Text(
+              username, // Display the username here
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
@@ -174,73 +199,214 @@ class ProfileScreen extends StatelessWidget {
       ],
     );
   }
+void _showChangeNameDialog(BuildContext context) {
+  final TextEditingController nameController = TextEditingController();
 
-  void _showChangeNameDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change account name'),
-        content: TextField(
-          decoration: const InputDecoration(
-            hintText: 'Enter new name',
-          ),
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Change account name'),
+      content: TextField(
+        controller: nameController,
+        decoration: const InputDecoration(
+          hintText: 'Enter new name',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              // TODO: Implement name change
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () async {
+            final newName = nameController.text.trim();
+            if (newName.isNotEmpty) {
+              await _updateUsername(context, newName);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Name cannot be empty.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+}
+ // For HttpHeaders
+
+Future<void> _updateUsername(BuildContext context, String newName) async {
+  try {
+    // Retrieve userId, username, and password from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    final username = prefs.getString('username'); // Stored username
+    final password = prefs.getString('password'); // Stored password
+
+    if (userId == null || username == null || password == null) {
+      throw Exception('User credentials not found. Please log in again.');
+    }
+
+    final uri = Uri.parse('http://localhost:8080/users/username/$userId');
+
+    // Construct Basic Auth header
+    final basicAuth =
+        'Basic ${base64Encode(utf8.encode('$username:$password'))}';
+
+    // Make the PUT request
+    final response = await http.put(
+      uri,
+      headers: {
+        HttpHeaders.authorizationHeader: basicAuth, // Include Basic Auth header
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'username': newName}), // Encode body as JSON
+    );
+
+    if (response.statusCode == 200) {
+      // Update the username in SharedPreferences
+      await prefs.setString('username', newName);
+
+      // Update the UI
+      setState(() {
+        this.username = newName;
+      });
+
+      // Close the dialog and show success message
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Username updated successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      throw Exception('Failed to update username: ${response.body}');
+    }
+  } catch (e) {
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(e.toString()),
+        backgroundColor: Colors.red,
       ),
     );
   }
+}
+void _showChangePasswordDialog(BuildContext context) {
+  final TextEditingController currentPasswordController = TextEditingController();
+  final TextEditingController newPasswordController = TextEditingController();
 
-  void _showChangePasswordDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change account password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'Enter current password',
-              ),
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Change account password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: currentPasswordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              hintText: 'Enter current password',
             ),
-            const SizedBox(height: 16),
-            TextField(
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'Enter new password',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () {
-              // TODO: Implement password change
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: newPasswordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              hintText: 'Enter new password',
+            ),
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () async {
+            final currentPassword = currentPasswordController.text.trim();
+            final newPassword = newPasswordController.text.trim();
+
+            if (currentPassword.isNotEmpty && newPassword.isNotEmpty) {
+              await _updatePassword(context, currentPassword, newPassword);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Both fields are required.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _updatePassword(
+    BuildContext context, String currentPassword, String newPassword) async {
+  try {
+    // Retrieve userId, username, and password from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    final username = prefs.getString('username'); // Stored username
+    final password = prefs.getString('password'); // Stored password
+
+    if (userId == null || username == null || password == null) {
+      throw Exception('User credentials not found. Please log in again.');
+    }
+
+    final uri = Uri.parse('http://localhost:8080/users/password/$userId');
+
+    // Construct Basic Auth header
+    final basicAuth =
+        'Basic ${base64Encode(utf8.encode('$username:$password'))}';
+
+    // Make the PUT request
+    final response = await http.put(
+      uri,
+      headers: {
+        HttpHeaders.authorizationHeader: basicAuth, // Include Basic Auth header
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }), // Encode body as JSON
+    );
+
+    if (response.statusCode == 200) {
+      // Password updated successfully
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password updated successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context); // Close the dialog
+    } else {
+      throw Exception('Failed to update password: ${response.body}');
+    }
+  } catch (e) {
+    Navigator.pop(context); // Close the dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(e.toString()),
+        backgroundColor: Colors.red,
+      ),
     );
   }
+}
 
   void _showChangeImageOptions(BuildContext context) {
     showModalBottomSheet(

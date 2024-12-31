@@ -75,6 +75,8 @@ class AuthController extends ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('userId', userId.toString()); // Store as String
         await prefs.setString('username', username);
+         
+        await prefs.setString('password', password);
 
         // Update current user and authentication state
         _currentUser = User(
@@ -99,6 +101,9 @@ class AuthController extends ChangeNotifier {
     try {
       _error = null;
       final uri = Uri.parse('$_baseUrl/register');
+      print('username: $username');
+      print('email: $email');
+      print('password: $password');
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},

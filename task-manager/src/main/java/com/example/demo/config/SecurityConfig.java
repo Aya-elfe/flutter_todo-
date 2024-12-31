@@ -14,13 +14,13 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/users/register", "/users/login", "/users/{id}/username","/categories/**","/tasks/**")
+                        .ignoringRequestMatchers("/users/register", "/users/login","/users/password/{id}", "/users/username/{id}","/categories/**","/tasks/**")
                 )
 
                 .cors(cors -> cors
                         .configurationSource(request -> {
                             var corsConfiguration = new org.springframework.web.cors.CorsConfiguration();
-                            corsConfiguration.addAllowedOrigin("http://localhost:62666"); // Allow frontend origin
+                            corsConfiguration.addAllowedOrigin("http://localhost:64353"); // Allow frontend origin
                             corsConfiguration.addAllowedMethod("*"); // Allow all HTTP methods
                             corsConfiguration.addAllowedHeader("*"); // Allow all headers
                             corsConfiguration.setAllowCredentials(true); // Allow cookies and credentials
